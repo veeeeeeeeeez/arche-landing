@@ -153,6 +153,9 @@ body.option2 #three-canvas { display: block; cursor: grab; }
 body.option2.dragging-marquee #three-canvas { cursor: grabbing; }
 body.option2 #stage         { display: none; }
 body.option2 .status        { display: none; }
+/* Reveal the status row while the email prompt / thanks message are
+   active, even in 3D mode. Higher specificity than the option2 hide. */
+body.option2.access-mode .status { display: block; }
 .theme-toggle svg { display: block; }
 .theme-toggle .icon-sun  { display: none; }
 .theme-toggle .icon-moon { display: block; }
@@ -691,6 +694,10 @@ body.option2 .status        { display: none; }
   document.getElementById('request').addEventListener('click', (e) => {
     e.preventDefault();
     stopStatusLoop();
+    // Status row is hidden by default in the 3D view; this class flips it
+    // back on so the inline prompt / thanks message is visible regardless
+    // of which view is showing.
+    document.body.classList.add('access-mode');
     const status = document.getElementById('status');
     status.innerHTML =
       '<span class="prompt">&gt; enter email:&nbsp;</span>' +
@@ -864,6 +871,90 @@ async function initThree() {
     envMapIntensity: 1.4,
   });
 
+  // ----- Subtle background grid -----
+  // Built as an XY-plane lattice and rotated -ELEV about world-X so the
+  // plane sits perpendicular to the camera's view direction — that's
+  // what keeps the cells visually square instead of perspective-foreshortened
+  // rectangles like the previous XZ floor was. Width is generous (objects
+  // wrap freely), height is narrow (just the band where the models move).
+  // Same material logic as Smith's SceneManager grid: depthWrite:false
+  // so models always sit on top, gridCenter color for theme.
+  const GRID_COLOR_LIGHT = 0xd4d2cf;  // matches THEME_COLORS.light.gridCenter
+  const GRID_COLOR_DARK  = 0x3a3835;  // matches THEME_COLORS.dark.gridCenter
+  // Vertex colors carry only the per-vertex alpha (RGB stays at white and
+  // is multiplied by material.color). That way the theme toggle just
+  // mutates material.color and the fade gradient stays correct.
+  const gridMaterial = new THREE.LineBasicMaterial({
+    color: document.documentElement.classList.contains('dark') ? GRID_COLOR_DARK : GRID_COLOR_LIGHT,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false,
+    vertexColors: true,
+  });
+  function buildBackdropGrid() {
+    const GRID_W = 80;   // X extent — wide enough to feel infinite past the marquee edges
+    const GRID_H = 11.0; // Y extent — taller than visible viewport so the fade has lots of room
+    const STEP = 0.5;    // cell size — half-unit squares for a finer grain
+    const FADE_START = 1.4;   // full alpha within ±FADE_START (covers the model band)
+    const FADE_END   = 5.4;   // alpha 0 beyond ±FADE_END — gradient runs ~4 units of grid
+    const halfW = GRID_W / 2;
+    const halfH = GRID_H / 2;
+    const verts = [];
+    const cols = [];          // RGBA per vertex — RGB is always white
+
+    function alphaForY(y) {
+      const a = Math.abs(y);
+      if (a <= FADE_START) return 1;
+      if (a >= FADE_END) return 0;
+      const t = (a - FADE_START) / (FADE_END - FADE_START);
+      return 1 - t * t * (3 - 2 * t);          // smoothstep ease-out
+    }
+    function push(x, y) {
+      verts.push(x, y, 0);
+      cols.push(1, 1, 1, alphaForY(y));
+    }
+
+    // Horizontal lines — skip both top and bottom boundary rows so neither
+    // edge is capped. Each horizontal sits at a constant y, so a single
+    // segment carries the right (uniform) alpha all the way across.
+    for (let y = -halfH + STEP; y < halfH - 1e-6; y += STEP) {
+      push(-halfW, y);
+      push( halfW, y);
+    }
+    // Vertical lines — subdivided so the fade interpolates smoothly along
+    // each line. Linear interp between two endpoints across the full
+    // -halfH..halfH range would just average a=0 with a=0 and you'd see
+    // nothing; chunking into N segments samples the smoothstep curve.
+    const N_SUB = 40;
+    for (let x = -halfW; x <= halfW + 1e-6; x += STEP) {
+      for (let i = 0; i < N_SUB; i++) {
+        const y1 = -halfH + (2 * halfH) * (i     / N_SUB);
+        const y2 = -halfH + (2 * halfH) * ((i+1) / N_SUB);
+        push(x, y1);
+        push(x, y2);
+      }
+    }
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    g.setAttribute('color',    new THREE.Float32BufferAttribute(cols, 4));
+    const mesh = new THREE.LineSegments(g, gridMaterial);
+    // Tilt the plane to be perpendicular to the camera's view direction.
+    // Camera elevation atan2(CAM_ELEV, CAM_DEPTH) ~ 26.8°; the plane needs
+    // to rotate -that around X so its normal points toward the camera.
+    const elev = Math.atan2(CAM_ELEV, CAM_DEPTH);
+    mesh.rotation.x = -elev;
+    // Push the plane back along the camera-forward axis so it sits behind
+    // the row of models. CAM_ELEV / CAM_DEPTH already encode the direction
+    // (camera_to_origin = -(0, CAM_ELEV, CAM_DEPTH)).
+    const BEHIND = 8;
+    mesh.position.set(0, -BEHIND * CAM_ELEV, -BEHIND * CAM_DEPTH);
+    mesh.renderOrder = -1;
+    mesh.frustumCulled = false;
+    return mesh;
+  }
+  scene.add(buildBackdropGrid());
+
   function applyTheme(isDark) {
     const old = envMap;
     envMap = buildEnvMap(renderer, isDark);
@@ -871,15 +962,16 @@ async function initThree() {
     chrome.envMap = envMap;
     chrome.needsUpdate = true;
     if (old) old.dispose();
+    gridMaterial.color.set(isDark ? GRID_COLOR_DARK : GRID_COLOR_LIGHT);
   }
 
   const loader = new GLTFLoader();
   const modelUrls = [
-    '/models/bowl.glb',
     '/models/f22.glb',
-    '/models/valve.glb',
     '/models/waterbottle.glb',
+    '/models/valve.glb',
     '/models/perfume.glb',
+    '/models/bowl.glb',
   ];
   const unique = await Promise.all(modelUrls.map((u) => loadModel(u, loader)));
 
