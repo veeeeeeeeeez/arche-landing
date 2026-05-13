@@ -118,6 +118,41 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 .theme-toggle:hover { color: var(--fg); background: var(--hover-tint); }
+
+/* Temporary "option 2" toggle — swaps the ASCII view for a Three.js
+   carousel of pre-tessellated STEP files. Sits left of the theme toggle. */
+.view-toggle {
+  position: fixed;
+  bottom: 22px;
+  right: 74px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  transition: color 140ms ease, background 140ms ease;
+  z-index: 30;
+  -webkit-tap-highlight-color: transparent;
+}
+.view-toggle:hover { color: var(--fg); background: var(--hover-tint); }
+
+/* Three.js canvas — hidden until option 2 is selected */
+#three-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: none;
+  z-index: 2;
+}
+body.option2 #three-canvas { display: block; cursor: grab; }
+body.option2.dragging-marquee #three-canvas { cursor: grabbing; }
+body.option2 #stage         { display: none; }
+body.option2 .status        { display: none; }
 .theme-toggle svg { display: block; }
 .theme-toggle .icon-sun  { display: none; }
 .theme-toggle .icon-moon { display: block; }
@@ -181,7 +216,7 @@ body {
 }
 </style>
 </head>
-<body>
+<body class="option2">
 <div class="brand">ARCHE INDUSTRIES</div>
 <pre id="stage"></pre>
 <div class="status" id="status">
@@ -194,6 +229,9 @@ body {
   <span class="dot">·</span>
   <a href="#" id="request">request access</a>
 </div>
+<canvas id="three-canvas"></canvas>
+
+<button class="view-toggle" id="view-toggle" aria-label="Toggle view">[ 1 ]</button>
 <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
   <svg class="icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
@@ -627,6 +665,15 @@ body {
 
   let last = performance.now();
   function loop(t) {
+    // The 3D carousel is the default view; ASCII is opt-in via [view-toggle].
+    // When the user is on the 3D view we skip the render work entirely —
+    // keep the rAF chain alive so resuming is instant, but reset `last` so
+    // the first dt after resume isn't a multi-second leap.
+    if (document.body.classList.contains('option2')) {
+      last = t;
+      requestAnimationFrame(loop);
+      return;
+    }
     const dt = Math.min(60, t - last);
     last = t;
     yaw += (2 * Math.PI) * dt / ROT_PERIOD;
@@ -663,9 +710,14 @@ body {
 
   // Theme toggle — pill button bottom-right, sun/moon icon swaps with state.
   // Light is the default; "dark" is remembered explicitly via localStorage.
+  // If the 3D carousel is initialised, ask it to rebuild its env map and
+  // re-tint the renderer so the chrome highlights track the new theme.
   document.getElementById('theme-toggle').addEventListener('click', () => {
     const isDark = document.documentElement.classList.toggle('dark');
     try { localStorage.setItem('arche-theme', isDark ? 'dark' : 'light'); } catch (_) {}
+    if (window.__archeOption2 && window.__archeOption2.applyTheme) {
+      window.__archeOption2.applyTheme(isDark);
+    }
   });
 
   function init() {
@@ -684,5 +736,317 @@ body {
   }
 })();
 </script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// ------------------------------------------------------------------
+// Option-2 view: scrolling marquee of pre-tessellated STEP files,
+// rendered with the same chrome PBR setup as Smith's MiniCadPreview.
+// Lazily initialised on first toggle so the import bytes don't load
+// on page open if the visitor never enables it.
+// ------------------------------------------------------------------
+
+const canvas = document.getElementById('three-canvas');
+const viewBtn = document.getElementById('view-toggle');
+
+let initialized = false;
+let renderState = null; // populated once Three.js boots
+
+function buildEnvMap(renderer, isDark) {
+  // Lifted from MiniCadPreview.buildChromeMaterial — five emissive
+  // panels in a small scene baked into a PMREM cube to drive specular
+  // highlights on the chrome material below.
+  const envScene = new THREE.Scene();
+  envScene.background = new THREE.Color(isDark ? 0x302c28 : 0x605850);
+  const panelGeo = new THREE.PlaneGeometry(1, 1);
+  const addPanel = (w, h, pos, rot, color, intensity) => {
+    const mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, toneMapped: false });
+    mat.color.multiplyScalar(intensity);
+    const mesh = new THREE.Mesh(panelGeo, mat);
+    mesh.position.set(...pos);
+    mesh.rotation.set(...rot);
+    mesh.scale.set(w, h, 1);
+    envScene.add(mesh);
+  };
+  const s = isDark ? 1.0 : 2.5;
+  addPanel(50, 40, [-5, 28,   0], [Math.PI/2, 0, 0],         0xfff6e8, 0.35 * s);
+  addPanel(40, 18, [ 3, 14, -28], [0, 0, 0],                  0xfff0e0, 0.40 * s);
+  addPanel(35, 15, [-4, 12,  28], [0, Math.PI, 0],            0xf0e8d8, 0.25 * s);
+  addPanel(20, 25, [-28, 12, -3], [0, Math.PI/2, 0],          0xdce4f0, 0.30 * s);
+  addPanel(18, 14, [ 28, 10,  5], [0, -Math.PI/2, 0],         0xf0ece8, 0.25 * s);
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envMap = pmrem.fromScene(envScene, 0.04).texture;
+  pmrem.dispose();
+  envScene.traverse((c) => { if (c.isMesh) { c.geometry.dispose(); c.material.dispose(); } });
+  return envMap;
+}
+
+async function loadModel(url, loader) {
+  return new Promise((resolve, reject) => {
+    loader.load(url, (gltf) => {
+      const group = gltf.scene;
+      // Smith's CadQuery convention is Z-up; Three.js is Y-up.
+      group.rotation.x = -Math.PI / 2;
+      resolve(group);
+    }, undefined, reject);
+  });
+}
+
+async function initThree() {
+  if (initialized) return;
+  initialized = true;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.setClearColor(0x000000, 0); // transparent background
+
+  const scene = new THREE.Scene();
+
+  // Orthographic camera — gives the marquee a flat strip feel where
+  // every part reads at the same scale as it slides past. Pitched ~27°
+  // above the row so each model reads from Smith's "slightly above"
+  // preview angle (matches MiniCadPreview's elevation; yaw is kept at
+  // 0 so the row's world-X motion still maps to a clean horizontal
+  // slide on screen).
+  const FRAME_W_BASE = 18; // world units across the frame at desktop
+  const camera = new THREE.OrthographicCamera(-9, 9, 5, -5, 0.1, 100);
+  const CAM_DIST = 22;
+  const CAM_ELEV = 0.451;            // sin(~26.8°) — matches Smith preview
+  const CAM_DEPTH = 0.892;           // cos(~26.8°)
+  camera.position.set(0, CAM_DIST * CAM_ELEV, CAM_DIST * CAM_DEPTH);
+  camera.lookAt(0, 0, 0);
+
+  function resize() {
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    renderer.setSize(w, h, false);
+    const frameW = FRAME_W_BASE;
+    const frameH = frameW * (h / Math.max(w, 1));
+    camera.left = -frameW / 2;
+    camera.right = frameW / 2;
+    camera.top = frameH / 2;
+    camera.bottom = -frameH / 2;
+    camera.updateProjectionMatrix();
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Lighting that swaps with the theme. The env map is the only piece
+  // that visibly changes between light and dark; the directional + ambient
+  // pair stay constant (they're already pretty neutral) but we keep their
+  // intensities in variables so a future theme tweak only needs the one
+  // applyTheme() call.
+  let envMap = buildEnvMap(renderer, document.documentElement.classList.contains('dark'));
+  scene.environment = envMap;
+
+  const ambient = new THREE.AmbientLight(0xffffff, 0.35);
+  scene.add(ambient);
+  const dir = new THREE.DirectionalLight(0xffffff, 0.75);
+  dir.position.set(5, 10, 7);
+  scene.add(dir);
+
+  const chrome = new THREE.MeshStandardMaterial({
+    color: 0xf2eee8,
+    metalness: 0.9,
+    roughness: 0.2,
+    envMap,
+    envMapIntensity: 1.4,
+  });
+
+  function applyTheme(isDark) {
+    const old = envMap;
+    envMap = buildEnvMap(renderer, isDark);
+    scene.environment = envMap;
+    chrome.envMap = envMap;
+    chrome.needsUpdate = true;
+    if (old) old.dispose();
+  }
+
+  const loader = new GLTFLoader();
+  const modelUrls = [
+    '/models/bowl.glb',
+    '/models/f22.glb',
+    '/models/valve.glb',
+    '/models/waterbottle.glb',
+    '/models/perfume.glb',
+  ];
+  const unique = await Promise.all(modelUrls.map((u) => loadModel(u, loader)));
+
+  // Normalise each model: scale to a target max-dim, recenter at origin.
+  const TARGET_DIM = 2.6;
+  const normalised = unique.map((root) => {
+    const bbox = new THREE.Box3().setFromObject(root);
+    const size = bbox.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    const scale = TARGET_DIM / maxDim;
+    root.scale.setScalar(scale);
+    // Recenter so the model spins around its own centroid.
+    const center = bbox.getCenter(new THREE.Vector3()).multiplyScalar(scale);
+    root.position.sub(center);
+    // Apply chrome material to every mesh, and disable frustum culling
+    // across the tree. Some models (notably the bowl) have geometry
+    // whose local bounding sphere doesn't tightly cover the world-space
+    // shape after the parent transforms — Three.js was culling them
+    // when they wrapped from left to right, producing a visible pop-in.
+    // The carousel only ever has six pivots on stage, so the cost of
+    // forcing them to render is negligible.
+    root.traverse((c) => {
+      c.frustumCulled = false;
+      if (c.isMesh) c.material = chrome;
+    });
+    return root;
+  });
+
+  // Build the marquee track. Two passes of [bowl, f22, valve] so the
+  // group can slide leftward by exactly one pass-width and wrap
+  // seamlessly (matches the /gallery/ marquee logic, in 3D).
+  const SPACING = 5.0;
+  const PASS_WIDTH = unique.length * SPACING;
+  const root = new THREE.Group();
+  scene.add(root);
+
+  const pivots = [];
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < normalised.length; i++) {
+      const pivot = new THREE.Group();
+      pivot.add(normalised[i].clone(true));
+      pivot.position.x = (pass * normalised.length + i) * SPACING;
+      // Stagger initial rotations so the three parts don't move in sync.
+      pivot.rotation.y = i * 0.7;
+      root.add(pivot);
+      pivots.push(pivot);
+    }
+  }
+
+  // Animation state
+  let scrollX = 0;
+  const BASE_VELOCITY = -0.012;  // world units / frame
+  const RETURN_RATE = 0.04;
+  const MAX_VELOCITY = -0.40;
+  const MIN_VELOCITY =  0.34;
+  let velocity = BASE_VELOCITY;
+
+  // Wheel boost — same shape as /gallery/, scaled for world units.
+  window.addEventListener('wheel', (e) => {
+    if (!document.body.classList.contains('option2')) return;
+    const d = (Math.abs(e.deltaX) > Math.abs(e.deltaY)) ? e.deltaX : e.deltaY;
+    velocity -= d * 0.0009;
+    if (velocity < MAX_VELOCITY) velocity = MAX_VELOCITY;
+    if (velocity > MIN_VELOCITY) velocity = MIN_VELOCITY;
+    e.preventDefault();
+  }, { passive: false });
+
+  // Click-drag to scrub through the row.
+  let dragging = false;
+  let lastX = 0;
+  let dragHist = [];
+  function pointerDown(x) {
+    dragging = true;
+    lastX = x;
+    dragHist = [];
+    document.body.classList.add('dragging-marquee');
+  }
+  function pointerMove(x) {
+    if (!dragging) return;
+    const dx = x - lastX;
+    lastX = x;
+    // Pixel delta -> world delta. Frame width ~= camera.right - camera.left.
+    const frameW = camera.right - camera.left;
+    const worldDx = dx * (frameW / canvas.clientWidth);
+    scrollX += worldDx;
+    dragHist.push(worldDx);
+    if (dragHist.length > 6) dragHist.shift();
+  }
+  function pointerUp() {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove('dragging-marquee');
+    if (dragHist.length) {
+      const avg = dragHist.reduce((a, b) => a + b, 0) / dragHist.length;
+      velocity = Math.max(MAX_VELOCITY, Math.min(MIN_VELOCITY, avg));
+    }
+  }
+  canvas.addEventListener('mousedown', (e) => {
+    if (!document.body.classList.contains('option2')) return;
+    pointerDown(e.clientX);
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => pointerMove(e.clientX));
+  window.addEventListener('mouseup', pointerUp);
+  canvas.addEventListener('touchstart', (e) => {
+    if (!document.body.classList.contains('option2')) return;
+    if (e.touches[0]) pointerDown(e.touches[0].clientX);
+  }, { passive: true });
+  window.addEventListener('touchmove', (e) => {
+    if (e.touches[0]) pointerMove(e.touches[0].clientX);
+  }, { passive: true });
+  window.addEventListener('touchend', pointerUp);
+
+  function frame() {
+    scrollX += velocity;
+    // Wrap so the row appears infinite.
+    if (scrollX <= -PASS_WIDTH) scrollX += PASS_WIDTH;
+    if (scrollX >=  0)          scrollX -= PASS_WIDTH;
+    root.position.x = scrollX - PASS_WIDTH * 0.5; // center the visible window
+
+    // Each pivot spins slowly on its own axis. A tiny tilt makes the
+    // chrome catch the env-map highlights as it rotates.
+    for (let i = 0; i < pivots.length; i++) {
+      pivots[i].rotation.y += 0.0045;
+    }
+
+    velocity += (BASE_VELOCITY - velocity) * RETURN_RATE;
+
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  frame();
+
+  renderState = { renderer, scene, camera, chrome, root };
+  // Publish a small handle so the theme toggle (lives outside this module
+  // in the IIFE above) can rebuild the env map without going through any
+  // shared module instance.
+  window.__archeOption2 = { applyTheme };
+}
+
+viewBtn.addEventListener('click', async () => {
+  const willEnable = !document.body.classList.contains('option2');
+  document.body.classList.toggle('option2', willEnable);
+  viewBtn.textContent = willEnable ? '[ 1 ]' : '[ 2 ]';
+  if (willEnable) {
+    try { await initThree(); }
+    catch (err) {
+      console.error('option-2 init failed:', err);
+      document.body.classList.remove('option2');
+      viewBtn.textContent = '[ 2 ]';
+    }
+  }
+});
+
+// 3D is the default view — kick off the renderer on page load so visitors
+// land on the carousel without having to opt in. If init fails (network
+// error, GPU refusal, etc.) fall back to the ASCII view automatically.
+(async () => {
+  try {
+    await initThree();
+  } catch (err) {
+    console.error('option-2 init failed at boot:', err);
+    document.body.classList.remove('option2');
+    viewBtn.textContent = '[ 2 ]';
+  }
+})();
+</script>
+
 </body>
 </html>
