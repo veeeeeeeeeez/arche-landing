@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>arche industries · gallery</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+  try {
+    if (localStorage.getItem('arche-theme') === 'dark') {
+      document.documentElement.classList.add('dark');
+    }
+  } catch (e) {}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f7f5f3;
+  --fg: #1a1816;
+  --dim: #8a8580;
+  --soft: #4a4540;
+  --rule: #d4d2cf;
+  --accent: #8b1bd1;
+  --bg-glass: rgba(247, 245, 243, 0.62);
+  --rule-glass: rgba(0, 0, 0, 0.08);
+  --hover-tint: rgba(0, 0, 0, 0.04);
+  --mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --serif: 'Newsreader', 'Iowan Old Style', 'Charter', Georgia, 'Times New Roman', serif;
+  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro', 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+:root.dark {
+  --bg: #1a1816;
+  --fg: #dddbd8;
+  --dim: #8a8580;
+  --soft: #b1aca5;
+  --rule: #34302c;
+  --accent: #b829ff;
+  --bg-glass: rgba(26, 24, 22, 0.62);
+  --rule-glass: rgba(255, 255, 255, 0.10);
+  --hover-tint: rgba(255, 255, 255, 0.06);
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+body { display: flex; align-items: center; justify-content: center; }
+
+a.brand {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--serif);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  color: var(--fg);
+  text-decoration: none;
+  z-index: 20;
+  padding: 9px 22px;
+  border-radius: 999px;
+  background: var(--bg-glass);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+          backdrop-filter: blur(14px) saturate(140%);
+  user-select: none;
+  white-space: nowrap;
+  transition: color 140ms ease, background 140ms ease;
+}
+a.brand:hover { color: var(--accent); }
+
+/* Scrolling marquee */
+.frame {
+  width: 100vw;
+  overflow: hidden;
+  position: relative;
+  /* mask: subtle fade at left/right edges so images visually emerge/disappear */
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 80px, #000 calc(100% - 80px), transparent 100%);
+          mask-image: linear-gradient(to right, transparent 0, #000 80px, #000 calc(100% - 80px), transparent 100%);
+}
+.track {
+  display: flex;
+  align-items: flex-start;
+  gap: 36px;
+  padding: 0 36px;
+  will-change: transform;
+  user-select: none;
+  cursor: grab;
+}
+.track.dragging { cursor: grabbing; }
+.track figure {
+  flex-shrink: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.track figure img {
+  display: block;
+  height: 46vh;
+  width: auto;
+  max-width: none;
+  object-fit: contain;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+.track figure figcaption {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--dim);
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  max-width: 480px;
+}
+.track figure figcaption .figno {
+  color: var(--soft);
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+}
+
+nav.footer {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--dim);
+  letter-spacing: 0.01em;
+  z-index: 20;
+  padding: 9px 20px;
+  border-radius: 999px;
+  background: var(--bg-glass);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+          backdrop-filter: blur(14px) saturate(140%);
+  white-space: nowrap;
+}
+nav.footer a {
+  color: var(--dim);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+nav.footer a:hover { color: var(--fg); }
+nav.footer .sep { padding: 0 9px; opacity: 0.55; }
+
+.theme-toggle {
+  position: fixed;
+  bottom: 22px;
+  right: 22px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--dim);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
+  z-index: 30;
+  -webkit-tap-highlight-color: transparent;
+}
+.theme-toggle:hover { color: var(--fg); background: var(--hover-tint); }
+.theme-toggle svg { display: block; }
+.theme-toggle .icon-sun  { display: none; }
+.theme-toggle .icon-moon { display: block; }
+:root.dark .theme-toggle .icon-sun  { display: block; }
+:root.dark .theme-toggle .icon-moon { display: none; }
+</style>
+</head>
+<body>
+
+<a class="brand" href="/">ARCHE INDUSTRIES</a>
+
+<div class="frame" id="frame">
+  <div class="track" id="track">
+    <!-- two passes of the same set so the marquee can loop seamlessly -->
+    <figure>
+      <img src="/images/01-jet.png" alt="">
+      <figcaption><span class="figno">FIG 1</span><span class="text">F-22 assembly built in Smith from a natural-language prompt</span></figcaption>
+    </figure>
+    <figure>
+      <img src="/images/02-bowl.png" alt="">
+      <figcaption><span class="figno">FIG 2</span><span class="text">Ceramic bowl — image-to-design one shot</span></figcaption>
+    </figure>
+    <figure>
+      <img src="/images/03-mcmaster.png" alt="">
+      <figcaption><span class="figno">FIG 3</span><span class="text">Real components from the live McMaster catalogue</span></figcaption>
+    </figure>
+    <figure>
+      <img src="/images/04-valve.png" alt="">
+      <figcaption><span class="figno">FIG 4</span><span class="text">Multi-part valve assembly built by an agent from requirements</span></figcaption>
+    </figure>
+    <figure>
+      <img src="/images/05-pressure.png" alt="">
+      <figcaption><span class="figno">FIG 5</span><span class="text">Automated pressure analysis on a new pipe section</span></figcaption>
+    </figure>
+    <figure>
+      <img src="/images/06-scrapyard.png" alt="">
+      <figcaption><span class="figno">FIG 6</span><span class="text">Scrapyard — the marketplace and discovery layer wrapped around Smith</span></figcaption>
+    </figure>
+    <!-- duplicate -->
+    <figure>
+      <img src="/images/01-jet.png" alt="">
+      <figcaption><span class="figno">FIG 1</span><span class="text">F-22 assembly built in Smith from a natural-language prompt</span></figcaption>
+    </figure>
+    <figure>
+      <img src="/images/02-bowl.png" alt="">
+      <figcaption><span class="figno">FIG 2</span><span class="text">Ceramic bowl — image-to-design one shot</span></figcaption>
+    </figure>
+    <figure>
+      <img src="/images/03-mcmaster.png" alt="">
+      <figcaption><span class="figno">FIG 3</span><span class="text">Real components from the live McMaster catalogue</span></figcaption>
+    </figure>
+    <figure>
+      <img src="/images/04-valve.png" alt="">
+      <figcaption><span class="figno">FIG 4</span><span class="text">Multi-part valve assembly built by an agent from requirements</span></figcaption>
+    </figure>
+    <figure>
+      <img src="/images/05-pressure.png" alt="">
+      <figcaption><span class="figno">FIG 5</span><span class="text">Automated pressure analysis on a new pipe section</span></figcaption>
+    </figure>
+    <figure>
+      <img src="/images/06-scrapyard.png" alt="">
+      <figcaption><span class="figno">FIG 6</span><span class="text">Scrapyard — the marketplace and discovery layer wrapped around Smith</span></figcaption>
+    </figure>
+  </div>
+</div>
+
+<nav class="footer">
+  <a href="/gallery/">gallery</a>
+  <span class="sep">·</span>
+  <a href="/manifesto/">manifesto</a>
+  <span class="sep">·</span>
+  <a href="/?request=1">request access</a>
+</nav>
+
+<button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+  <svg class="icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+  </svg>
+  <svg class="icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="5"/>
+    <line x1="12" y1="1" x2="12" y2="3"/>
+    <line x1="12" y1="21" x2="12" y2="23"/>
+    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+    <line x1="1" y1="12" x2="3" y2="12"/>
+    <line x1="21" y1="12" x2="23" y2="12"/>
+    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+  </svg>
+</button>
+
+<script>
+(() => {
+  "use strict";
+
+  const track = document.getElementById('track');
+  const BASE_VELOCITY = -0.55;   // px / frame at 60fps — gentle leftward drift
+  const RETURN_RATE   = 0.04;    // how quickly extra speed dampens back to baseline
+  const MAX_VELOCITY  = -22;     // most negative (fastest left) we allow
+  const MIN_VELOCITY  =  18;     // most positive (fastest right) we allow
+
+  let scrollX = 0;
+  let velocity = BASE_VELOCITY;
+  let halfWidth = 0;             // width of one full set; track holds two sets
+
+  function measure() {
+    // The track contains two identical passes. Half the scrollWidth equals
+    // exactly one pass — that's the wrap distance for a seamless loop.
+    halfWidth = track.scrollWidth / 2;
+  }
+
+  function frame() {
+    scrollX += velocity;
+    if (scrollX <= -halfWidth) scrollX += halfWidth;
+    if (scrollX >= 0)          scrollX -= halfWidth;
+    track.style.transform = 'translateX(' + scrollX + 'px)';
+
+    // Ease back toward baseline. RETURN_RATE per frame; small enough that
+    // a wheel boost is visible for a moment before settling.
+    velocity += (BASE_VELOCITY - velocity) * RETURN_RATE;
+
+    requestAnimationFrame(frame);
+  }
+
+  // Scrolling wheel adds to the leftward velocity.
+  window.addEventListener('wheel', (e) => {
+    // Capture both axes — trackpads emit deltaX for horizontal swipes too.
+    const d = (Math.abs(e.deltaX) > Math.abs(e.deltaY)) ? e.deltaX : e.deltaY;
+    velocity -= d * 0.04;
+    if (velocity < MAX_VELOCITY) velocity = MAX_VELOCITY;
+    if (velocity > MIN_VELOCITY) velocity = MIN_VELOCITY;
+    e.preventDefault();
+  }, { passive: false });
+
+  // Click-drag (desktop) and touch-drag (mobile).
+  let dragging = false;
+  let lastPointerX = 0;
+  let dragVelocityHistory = [];
+
+  function pointerDown(x) {
+    dragging = true;
+    lastPointerX = x;
+    track.classList.add('dragging');
+    dragVelocityHistory = [];
+  }
+  function pointerMove(x) {
+    if (!dragging) return;
+    const dx = x - lastPointerX;
+    lastPointerX = x;
+    scrollX += dx;
+    if (scrollX <= -halfWidth) scrollX += halfWidth;
+    if (scrollX >= 0)          scrollX -= halfWidth;
+    track.style.transform = 'translateX(' + scrollX + 'px)';
+    // Track recent dx values to derive a release velocity (flick gesture).
+    dragVelocityHistory.push(dx);
+    if (dragVelocityHistory.length > 6) dragVelocityHistory.shift();
+  }
+  function pointerUp() {
+    if (!dragging) return;
+    dragging = false;
+    track.classList.remove('dragging');
+    // Average recent dx → release velocity, then let dampening pull it
+    // back toward baseline.
+    if (dragVelocityHistory.length) {
+      const avg = dragVelocityHistory.reduce((a, b) => a + b, 0) / dragVelocityHistory.length;
+      velocity = Math.max(MAX_VELOCITY, Math.min(MIN_VELOCITY, avg));
+    }
+  }
+
+  track.addEventListener('mousedown', (e) => { pointerDown(e.clientX); e.preventDefault(); });
+  window.addEventListener('mousemove', (e) => pointerMove(e.clientX));
+  window.addEventListener('mouseup', pointerUp);
+
+  track.addEventListener('touchstart', (e) => {
+    if (e.touches[0]) pointerDown(e.touches[0].clientX);
+  }, { passive: true });
+  window.addEventListener('touchmove', (e) => {
+    if (e.touches[0]) pointerMove(e.touches[0].clientX);
+  }, { passive: true });
+  window.addEventListener('touchend', pointerUp);
+
+  // Re-measure when fonts/images load or the viewport resizes.
+  window.addEventListener('resize', measure);
+  window.addEventListener('load', measure);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure);
+
+  measure();
+  requestAnimationFrame(frame);
+
+  // Theme toggle
+  document.getElementById('theme-toggle').addEventListener('click', () => {
+    const isDark = document.documentElement.classList.toggle('dark');
+    try { localStorage.setItem('arche-theme', isDark ? 'dark' : 'light'); } catch (_) {}
+  });
+})();
+</script>
+</body>
+</html>
