@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>arche industries · manifesto</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+  try {
+    if (localStorage.getItem('arche-theme') === 'dark') {
+      document.documentElement.classList.add('dark');
+    }
+  } catch (e) {}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f7f5f3;
+  --fg: #1a1816;
+  --dim: #8a8580;
+  --soft: #4a4540;
+  --accent: #8b1bd1;
+  --rule: #d4d2cf;
+  --mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --serif: 'Newsreader', 'Iowan Old Style', 'Charter', 'Georgia', 'Times New Roman', serif;
+  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro', 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+:root.dark {
+  --bg: #1a1816;
+  --fg: #dddbd8;
+  --dim: #8a8580;
+  --soft: #b1aca5;
+  --accent: #b829ff;
+  --rule: #34302c;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--serif);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+body { min-height: 100vh; }
+
+a.brand {
+  position: fixed;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--serif);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  color: var(--fg);
+  text-decoration: none;
+  z-index: 20;
+  background: var(--bg);
+  padding: 6px 18px;
+  user-select: none;
+  white-space: nowrap;
+  transition: color 140ms ease;
+}
+a.brand:hover { color: var(--accent); }
+
+.page {
+  max-width: 1480px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 96px;
+  padding: 96px 56px 96px;
+}
+
+/* ====== Essay (left column) ====== */
+.essay {
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.62;
+  color: var(--fg);
+  font-weight: 400;
+  max-width: 60ch;
+  width: 100%;
+}
+.essay .lede {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin: 0 0 14px;
+}
+.essay h1 {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  margin: 0 0 48px;
+}
+.essay h1 em {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 30px;
+  letter-spacing: -0.005em;
+}
+.essay p { margin: 0 0 22px; }
+.essay p strong {
+  font-weight: 500;
+  color: var(--fg);
+}
+.essay .signoff {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  margin: 44px 0 0;
+  color: var(--fg);
+}
+
+/* ====== Gallery (right column) ====== */
+.gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 76px;
+  padding-top: 12px;
+  align-items: stretch;
+}
+.gallery figure {
+  margin: 0;
+  width: calc(100% - 60px);
+}
+.gallery figure:nth-child(odd)  { align-self: flex-start; margin-left: -16px; }
+.gallery figure:nth-child(even) { align-self: flex-end;   margin-right: -16px; }
+.gallery figure.narrow { width: 58%; }
+.gallery figure img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 2px;
+  border: 1px solid var(--rule);
+}
+.gallery figure figcaption {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--dim);
+  margin-top: 14px;
+  letter-spacing: 0.04em;
+  line-height: 1.55;
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+}
+.gallery figure figcaption .figno {
+  color: var(--soft);
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+}
+.gallery figure figcaption .text { color: var(--dim); }
+
+/* ====== Footer ====== */
+nav.footer {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--dim);
+  letter-spacing: 0.01em;
+  z-index: 20;
+  background: var(--bg);
+  padding: 6px 16px;
+  white-space: nowrap;
+}
+nav.footer a {
+  color: var(--dim);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+nav.footer a:hover { color: var(--fg); }
+nav.footer .sep {
+  padding: 0 9px;
+  opacity: 0.55;
+}
+
+@media (max-width: 920px) {
+  .page {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 72px;
+    padding: 96px 28px 96px;
+  }
+  .gallery { padding-top: 0; }
+  .gallery figure { width: 100% !important; margin: 0 !important; }
+  .gallery figure.narrow { width: 70% !important; }
+}
+</style>
+</head>
+<body>
+
+<a class="brand" href="/">ARCHE INDUSTRIES</a>
+
+<main class="page">
+  <article class="essay">
+    <p class="lede">a manifesto</p>
+    <h1>On <em>Arche</em></h1>
+
+    <p>We stand at the edge of a new industrial revolution, powered by digital minds that reason and act at a pace unimaginable five years ago. But abundance demands atoms, not bits. We have the minds; we do not yet have their hands. Where is Jarvis, the intelligence that rotates holograms in the workshop, stress-tests alloys, and hands a finished suit to its maker? The civilizational turning point arrives when AI designs the factories and commands the machines that build everything else. To get there, agents will learn to get their hands dirty and make inventions worthy of instantiation in our universe.</p>
+
+    <p>The ideal of the post-AI industrialization of the world is no different than the principle that propelled the industrializations of the past: a person with an idea and a workshop can make the thing. This promise is as timeless as it is ubiquitous. The Wright brothers figured out powered flight in the back of a bicycle shop in Dayton, Ohio. Doc Brown built a time machine in a garage in Hill Valley, alone, out of a DeLorean and whatever he could weld to it. Luke's X-wing got patched together in a swamp hangar on Dagobah. The Batmobile, the fusion reactor, hyperdrive. Step back from the technical details and focus on what enables it: rapid prototyping. The ability to go from intent to physical object in the time it takes to think carefully about it.</p>
+
+    <p>This has never been truly possible. Not really. It has been approximately true for software since roughly 2008, which is why software ate everything it was allowed to eat. It has been catastrophically untrue for physical goods. A mechanical engineer today works in software stacks designed in the 1990s, built around the assumption that the technician is the bottleneck and the machine is the scarce resource. You wait weeks for a prototype. You iterate in units of quarters. The tools assume you have time and that time is the cheapest thing you have.</p>
+
+    <p><strong>Smith is the tool for the world where that assumption has inverted. That is the world we live in today. TLDR: Cursor for physical design. You describe the part in natural language, you annotate the geometry the way you would sketch on a napkin with a friend, you hand the model a load case and Smith simulates it in real time.</strong> It is an AI-native mechanical engineering platform, Python as the source of truth, GPU-accelerated simulation, an agent that understands intent and outputs geometry you can manufacture.</p>
+
+    <p>Consider an engineer designing a new valve. Before committing to a single approach, they have to evaluate a range of viable designs, including different architectures, seal materials, body alloys, and manufacturing methods. Permutations of those choices must be assessed in order to understand tradeoffs and narrow the design space. This means carrying each candidate through roughly the first 20% of the design process: enough CAD geometry, rough flow and pressure-drop estimates, stress checks on the body and stem, and supplier sourcing for castings, seals, and actuators to compare options on equal footing. The math doesn't need to be precise at this stage, but the work is serial and slow, because the engineer has to grind through each branch of the trade study one at a time. Smith collapses that bottleneck. Our agents spin up candidate designs in parallel, generating the CAD, running first-pass CFD and FEA, pulling from live sourcing catalogues, producing the side-by-side comparison the engineer actually needs to make an informed commitment. What used to take weeks of sequential exploration becomes an afternoon of reviewing options, letting engineers spend their time on the decision that matters rather than the legwork to set it up.</p>
+
+    <p>Now zoom out. The valve is not special. The same trade study, candidate prototyping, sequential narrowing process is what stands behind every physical object in your line of sight right now. The chair you're sitting on, designed by someone weighing frame geometries against load distributions and upholstery suppliers and injection mold tooling. The table in front of you, the bracket that holds the table together, the screw that holds the bracket. The water bottle, the coffee maker, the fan above your head, the door hinge, the laptop charger, the carabiner clipped to a backpack somewhere. Every one of these objects is the surviving artifact of a process where some engineer had to grind through five or ten or fifty candidate designs, one at a time, until one was good enough to ship. Multiply that by the number of components in a car, by the number of cars on the road, by every appliance and tool and fastener and assembly in the global economy. <strong>Component design is the substrate that feeds every assembly engineering and industrial practice on the planet, and the bottleneck has always been human serial throughput. We collapse all of that.</strong> This is a trillion-dollar problem dressed up as a workflow improvement, and the platform that solves it owns the layer that everything else gets built on top of.</p>
+
+    <p>Here is the second piece. Fabs are getting smaller. Desktop CNC, benchtop injection molding, metal 3D printing you can put in a garage, five-axis machines that used to cost a million dollars now cost forty thousand. The long arc is obvious. Manufacturing capacity is decentralizing the same way compute decentralized when we went from mainframes to PCs to phones. In ten years, the bottleneck in physical goods will not be the machines. It will be the interface between the person with the idea and the machine that can make it, and it will be the interface between the person with the machine and the person who needs something made.</p>
+
+    <p><strong>Scrapyard is the marketplace and discovery layer wrapped around Smith, hosting a social interface that drives volume. The data flywheel underneath is the moat. Each closed-loop of design to manufactured part generates labeled production data. A single record holds the geometry, the tolerance, the lead time, and the reorder behavior, all attached to a real part designed by a real engineer and shipped to a real dock. There is no comparable graph anywhere, public or private.</strong> The parts you see and prototype inside Smith are not generic polygons pulled from a free library. They are real components from real supplier catalogues, the same catalogues that today are locked behind sales reps and PDF spec sheets and minimum order quantities. McMaster is a miracle and also the ceiling of what the industry currently imagines. Scrapyard pulls those catalogues open, indexes them, makes them queryable by the agent, and closes the loop between the part you modeled and the part that actually ships to your dock. Through remixing designs, every object on Scrapyard becomes a base file that anyone can fork, customize, and reorder, with provenance and royalties flowing back to the original designer. This is the prosumer bet, that all objects should be customizable. Interior design firms personalizing furniture for a client. Pottery studios offering bespoke ceramics without tooling up from scratch. Every fork is training data, every shipped part closes the loop. We want to own the pipeline from intent to object, end to end.</p>
+
+    <p>The instinct in Silicon Valley right now is to build more chatbots. Ours is that the actual frontier is physical, that America forgot how to build things somewhere around 1975 and the re-learning is going to happen whether the incumbents like it or not, and that the companies that matter in twenty years will be the ones that made building things easy again. This is a pro-builder bet. It is a bet on the guy with the welder, the woman with the small machine shop, the ranch kid who grew up fixing equipment because the nearest dealer was three hours away. Those people have been absent from the software story for a generation. They are coming back, and they will not be coming back as users of someone else's SaaS. They will be coming back as the people who build the economy.</p>
+
+    <p>We think this is inevitable, and the only live question is who builds the tools for it. We believe it should be people who understand both halves, who can write a compiler and weld a trailer hitch, who treat the loss of American industrial capacity as a problem to be solved rather than a fact to be mourned. That is who we are trying to be. That is who we are trying to hire.</p>
+
+    <p>One day soon, in a hangar somewhere, someone is going to walk in with a laptop, fire up a Smith file, and walk out with an X-wing. We would like to be the ones who made that afternoon possible.</p>
+
+    <p class="signoff">Arche Technologies. Smith. Scrapyard. Build anything.</p>
+  </article>
+
+  <aside class="gallery">
+    <figure>
+      <img src="images/01-jet.png" alt="F-22 assembly in Smith">
+      <figcaption><span class="figno">FIG 1</span><span class="text">F-22 assembly built in Smith from a natural-language prompt</span></figcaption>
+    </figure>
+    <figure class="narrow">
+      <img src="images/02-bowl.png" alt="Ceramic bowl image-to-design">
+      <figcaption><span class="figno">FIG 2</span><span class="text">Ceramic bowl — image-to-design one shot</span></figcaption>
+    </figure>
+    <figure>
+      <img src="images/03-mcmaster.png" alt="McMaster catalogue integration">
+      <figcaption><span class="figno">FIG 3</span><span class="text">Real components from the live McMaster catalogue</span></figcaption>
+    </figure>
+    <figure>
+      <img src="images/04-valve.png" alt="Valve assembly">
+      <figcaption><span class="figno">FIG 4</span><span class="text">Multi-part valve assembly built by an agent from requirements</span></figcaption>
+    </figure>
+    <figure>
+      <img src="images/05-pressure.png" alt="Pressure analysis">
+      <figcaption><span class="figno">FIG 5</span><span class="text">Automated pressure analysis on a new pipe section</span></figcaption>
+    </figure>
+    <figure>
+      <img src="images/06-scrapyard.png" alt="Scrapyard marketplace">
+      <figcaption><span class="figno">FIG 6</span><span class="text">Scrapyard — the marketplace and discovery layer wrapped around Smith</span></figcaption>
+    </figure>
+  </aside>
+</main>
+
+<nav class="footer">
+  <a href="/">back</a>
+  <span class="sep">·</span>
+  <a href="/?request=1" id="request">request access</a>
+  <span class="sep">·</span>
+  <a href="#" id="theme">dark</a>
+</nav>
+
+<script>
+(() => {
+  "use strict";
+  const themeLink = document.getElementById('theme');
+  function sync() {
+    themeLink.textContent = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
+  }
+  sync();
+  themeLink.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    const isDark = document.documentElement.classList.toggle('dark');
+    sync();
+    try { localStorage.setItem('arche-theme', isDark ? 'dark' : 'light'); } catch (_) {}
+  });
+})();
+</script>
+</body>
+</html>

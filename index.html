@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>arche industries</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script>
+  try {
+    if (localStorage.getItem('arche-theme') === 'dark') {
+      document.documentElement.classList.add('dark');
+    }
+  } catch (e) {}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f7f5f3;
+  --fg: #1a1816;
+  --dim: #8a8580;
+  --accent: #8b1bd1;
+  --mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --serif: 'Newsreader', 'Iowan Old Style', 'Charter', Georgia, 'Times New Roman', serif;
+  --sans: -apple-system, BlinkMacSystemFont, 'SF Pro', 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+:root.dark {
+  --bg: #1a1816;
+  --fg: #dddbd8;
+  --dim: #8a8580;
+  --accent: #b829ff;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.brand {
+  position: fixed;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--serif);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  color: var(--fg);
+  user-select: none;
+  z-index: 10;
+  white-space: nowrap;
+}
+.nav {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--sans);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  color: var(--dim);
+  user-select: none;
+  z-index: 10;
+  white-space: nowrap;
+}
+.nav a {
+  color: var(--dim);
+  text-decoration: none;
+  transition: color 140ms ease;
+}
+.nav a:hover { color: var(--fg); }
+.nav .dot { padding: 0 9px; opacity: 0.55; }
+#stage {
+  margin: 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: clamp(10px, 1.55vh, 15px);
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: pre;
+  color: var(--fg);
+  cursor: crosshair;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+  pointer-events: none;
+}
+#stage .a { color: var(--accent); }
+.status {
+  position: fixed;
+  bottom: 52px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--dim);
+  user-select: none;
+  z-index: 10;
+  letter-spacing: 0.01em;
+}
+.status #cursor {
+  display: inline-block;
+  width: 0.6em;
+  text-align: left;
+  margin-right: 0.25em;
+  color: var(--fg);
+  animation: blink 1.2s steps(2, end) infinite;
+}
+.status .prompt { color: var(--dim); }
+.status input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 13px;
+  width: 16em;
+  padding: 0;
+  margin: 0;
+  caret-color: var(--fg);
+  letter-spacing: 0.01em;
+}
+@keyframes blink {
+  0%   { opacity: 1; }
+  50%  { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+</style>
+</head>
+<body>
+<div class="brand">ARCHE INDUSTRIES</div>
+<pre id="stage"></pre>
+<div class="status" id="status">
+  <span id="cursor">_</span><span id="opname"></span><span id="opval"></span>
+</div>
+<div class="nav">
+  <a href="/manifesto/" id="manifesto">manifesto</a>
+  <span class="dot">·</span>
+  <a href="#" id="request">request access</a>
+  <span class="dot">·</span>
+  <a href="#" id="theme">dark</a>
+</div>
+<script>
+(() => {
+  "use strict";
+
+  const COLS = 112;
+  const ROWS = 44;
+  const stage = document.getElementById('stage');
+
+  const SIGNS = [
+    [-1,-1,-1], [ 1,-1,-1], [ 1, 1,-1], [-1, 1,-1],
+    [-1,-1, 1], [ 1,-1, 1], [ 1, 1, 1], [-1, 1, 1]
+  ];
+  const CUBE_EDGES = [
+    [0,1,0],[3,2,0],[4,5,0],[7,6,0],
+    [0,3,1],[1,2,1],[4,7,1],[5,6,1],
+    [0,4,2],[1,5,2],[2,6,2],[3,7,2]
+  ];
+
+  function buildPart(s) {
+    const V = [];
+    const E = [];
+    const size = [s.sx, s.sy, s.sz];
+    const r = Math.max(0, Math.min(s.r, Math.min(s.sx, s.sy, s.sz) * 0.48));
+
+    function tp(c, a) {
+      const out = new Array(3);
+      for (let i = 0; i < 3; i++) {
+        out[i] = i === a ? SIGNS[c][i] * size[i] : SIGNS[c][i] * (size[i] - r);
+      }
+      return out;
+    }
+    function cornerCenter(c) {
+      return SIGNS[c].map((sg, i) => sg * (size[i] - r));
+    }
+
+    const tpIdx = new Array(24);
+    for (let c = 0; c < 8; c++) {
+      for (let a = 0; a < 3; a++) {
+        tpIdx[c * 3 + a] = V.length;
+        V.push(tp(c, a));
+      }
+    }
+
+    // Fillet isolines: two tangents (θ=0, π/2) where the quarter-cylinder
+    // meets each adjacent face, plus two intermediates (θ=π/6, π/3) around
+    // the rounded surface. All four collapse onto the sharp edge at r=0.
+    for (let i = 0; i < CUBE_EDGES.length; i++) {
+      const [c1, c2, a] = CUBE_EDGES[i];
+      const b = (a + 1) % 3;
+      const c = (a + 2) % 3;
+      E.push([tpIdx[c1 * 3 + b], tpIdx[c2 * 3 + b]]);
+      E.push([tpIdx[c1 * 3 + c], tpIdx[c2 * 3 + c]]);
+    }
+    if (r > 0.006) {
+      const isoAngles = [Math.PI / 6, Math.PI / 3];
+      for (let j = 0; j < isoAngles.length; j++) {
+        const theta = isoAngles[j];
+        const fb = 1 - Math.cos(theta);
+        const fc = 1 - Math.sin(theta);
+        for (let i = 0; i < CUBE_EDGES.length; i++) {
+          const [c1, c2, a] = CUBE_EDGES[i];
+          const b = (a + 1) % 3;
+          const c = (a + 2) % 3;
+          const p1 = [0, 0, 0];
+          const p2 = [0, 0, 0];
+          p1[a] = SIGNS[c1][a] * (size[a] - r);
+          p1[b] = SIGNS[c1][b] * (size[b] - r * fb);
+          p1[c] = SIGNS[c1][c] * (size[c] - r * fc);
+          p2[a] = SIGNS[c2][a] * (size[a] - r);
+          p2[b] = SIGNS[c2][b] * (size[b] - r * fb);
+          p2[c] = SIGNS[c2][c] * (size[c] - r * fc);
+          const i1 = V.length; V.push(p1);
+          const i2 = V.length; V.push(p2);
+          E.push([i1, i2]);
+        }
+      }
+    }
+
+    // Fillet arcs at each corner: three quarter-circles per corner.
+    if (r > 0.006) {
+      const SEG = 6;
+      for (let c = 0; c < 8; c++) {
+        const cen = cornerCenter(c);
+        for (let a1 = 0; a1 < 3; a1++) {
+          for (let a2 = a1 + 1; a2 < 3; a2++) {
+            const p1 = V[tpIdx[c * 3 + a1]];
+            const p2 = V[tpIdx[c * 3 + a2]];
+            let prev = tpIdx[c * 3 + a1];
+            for (let i = 1; i <= SEG; i++) {
+              const t = i / SEG;
+              const ang = t * Math.PI * 0.5;
+              const ca = Math.cos(ang), sa = Math.sin(ang);
+              let curr;
+              if (i === SEG) {
+                curr = tpIdx[c * 3 + a2];
+              } else {
+                curr = V.length;
+                V.push([
+                  cen[0] + ca * (p1[0] - cen[0]) + sa * (p2[0] - cen[0]),
+                  cen[1] + ca * (p1[1] - cen[1]) + sa * (p2[1] - cen[1]),
+                  cen[2] + ca * (p1[2] - cen[2]) + sa * (p2[2] - cen[2])
+                ]);
+              }
+              E.push([prev, curr]);
+              prev = curr;
+            }
+          }
+        }
+      }
+    }
+
+    // Twist about Y, applied to all vertices (proportional to y/sy).
+    if (Math.abs(s.tw) > 0.003) {
+      for (let i = 0; i < V.length; i++) {
+        const v = V[i];
+        const yNorm = v[1] / s.sy;
+        const ang = yNorm * s.tw;
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        const x = v[0], z = v[2];
+        v[0] = x * ca + z * sa;
+        v[2] = -x * sa + z * ca;
+      }
+    }
+
+    return { V, E };
+  }
+
+  const timeline = [
+    { dwell: 1600, dur:    0, to: { sx:1.0,  sy:1.0,  sz:1.0,  r:0.00, h:0, tw:0.00 } },
+    { dwell: 1200, dur: 1800, to: { sx:1.0,  sy:1.0,  sz:1.0,  r:0.20, h:0, tw:0.00 } },
+    { dwell: 1200, dur: 1800, to: { sx:1.0,  sy:1.45, sz:1.0,  r:0.20, h:0, tw:0.00 } },
+    { dwell:  400, dur: 2800, kind: 'pong',
+      to: { sx:1.0, sy:0.15, sz:1.0, r:0.20, h:0, tw:0.00 } },
+    { dwell: 1200, dur: 1800, to: { sx:1.35, sy:1.45, sz:1.0,  r:0.20, h:0, tw:0.00 } },
+    { dwell: 1500, dur: 2000, to: { sx:1.35, sy:1.45, sz:1.0,  r:0.20, h:0, tw:0.50 } },
+    { dwell: 1000, dur: 2200, to: { sx:1.0,  sy:1.0,  sz:1.0,  r:0.00, h:0, tw:0.00 } }
+  ];
+
+  function ease(t) {
+    return t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) * 0.5;
+  }
+  // Round-trip ease for 'pong' phases: ramp 0→1 over 0..0.35, hold at 1
+  // through 0.65, ramp 1→0 over 0.65..1.0.
+  function pongEase(p) {
+    if (p < 0.35) return ease(p / 0.35);
+    if (p > 0.65) return ease((1 - p) / 0.35);
+    return 1;
+  }
+
+  let phaseIdx = 0;
+  let phaseT = 0;
+  const partState = { ...timeline[0].to };
+  let phaseStart = { ...timeline[0].to };
+  const PARAM_KEYS = ['sx','sy','sz','r','h','tw'];
+
+  function tickState(dt) {
+    phaseT += dt;
+    const phase = timeline[phaseIdx];
+    const total = phase.dur + phase.dwell;
+    const isPong = phase.kind === 'pong';
+    if (phaseT < phase.dur) {
+      const p = phaseT / phase.dur;
+      const e = isPong ? pongEase(p) : ease(p);
+      for (const k of PARAM_KEYS) {
+        partState[k] = phaseStart[k] + (phase.to[k] - phaseStart[k]) * e;
+      }
+    } else if (phaseT < total) {
+      const settle = isPong ? phaseStart : phase.to;
+      for (const k of PARAM_KEYS) partState[k] = settle[k];
+    } else {
+      phaseT -= total;
+      phaseIdx = (phaseIdx + 1) % timeline.length;
+      phaseStart = { ...partState };
+    }
+  }
+
+  let yaw = 0;
+  let pitch = 0, pitchTarget = 0;
+  let roll  = 0, rollTarget  = 0;
+
+  const TILT_MAX   = 15 * Math.PI / 180;
+  const ROT_PERIOD = 24000;
+  const LERP       = 0.08;
+  const CAM        = 4.0;
+
+  let mouseX = -9999, mouseY = -9999;
+  let stageLeft = 0, stageTop = 0, charW = 8, charH = 14;
+  let focalX = 100, focalY = 60;
+
+  function measureStage() {
+    const r = stage.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) {
+      stageLeft = r.left;
+      stageTop  = r.top;
+      charW     = r.width / COLS;
+      charH     = r.height / ROWS;
+      focalY = (ROWS * 0.66 / 1.45) * CAM * 0.5;
+      focalX = focalY * (charH / charW);
+    }
+  }
+
+  window.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    const nx = (mouseX / window.innerWidth)  * 2 - 1;
+    const ny = (mouseY / window.innerHeight) * 2 - 1;
+    pitchTarget = -ny * TILT_MAX;
+    rollTarget  = -nx * TILT_MAX;
+  });
+
+  window.addEventListener('resize', () => {
+    requestAnimationFrame(() => requestAnimationFrame(measureStage));
+  });
+
+  const Z_NEAR = CAM - 1.7;
+  const Z_FAR  = CAM + 1.7;
+
+  function charFor(dx, dy, depth) {
+    const d = Math.max(0, Math.min(1, (depth - Z_NEAR) / (Z_FAR - Z_NEAR)));
+    if (d < 0.10) {
+      const adx = Math.abs(dx), ady = Math.abs(dy);
+      if (ady > 1.5 * adx) return '#';
+      if (adx > 3.0 * ady) return '%';
+      return '@';
+    }
+    const adx = Math.abs(dx), ady = Math.abs(dy);
+    let base;
+    if (adx < 0.35 && ady < 0.35)       base = '.';
+    else if (ady > 2.4 * adx)           base = '|';
+    else if (adx > 2.4 * ady)           base = '-';
+    else if ((dx >= 0) === (dy <= 0))   base = '/';
+    else                                base = '\\';
+
+    if (d > 0.86) {
+      if (base === '|') return '\'';
+      if (base === '-') return '.';
+      if (base === '/') return '`';
+      if (base === '\\') return '.';
+      return '`';
+    }
+    if (d > 0.66) {
+      if (base === '|') return ':';
+      if (base === '-') return '_';
+      if (base === '/') return ',';
+      if (base === '\\') return ';';
+    }
+    return base;
+  }
+
+  const grid = new Array(ROWS);
+  const depthBuf = new Array(ROWS);
+  for (let i = 0; i < ROWS; i++) {
+    grid[i]     = new Array(COLS);
+    depthBuf[i] = new Float32Array(COLS);
+  }
+
+  function render(geom) {
+    for (let i = 0; i < ROWS; i++) {
+      const g = grid[i], dz = depthBuf[i];
+      for (let j = 0; j < COLS; j++) { g[j] = ' '; dz[j] = Infinity; }
+    }
+
+    const cy_ = Math.cos(yaw),   sy_ = Math.sin(yaw);
+    const cp_ = Math.cos(pitch), sp_ = Math.sin(pitch);
+    const cr_ = Math.cos(roll),  sr_ = Math.sin(roll);
+    const cxS = COLS * 0.5;
+    const cyS = ROWS * 0.5;
+    const V = geom.V;
+    const E = geom.E;
+
+    const proj = new Float32Array(V.length * 3);
+    for (let i = 0; i < V.length; i++) {
+      const v = V[i];
+      const x = v[0], y = v[1], z = v[2];
+      const x1 =  x * cy_ + z * sy_;
+      const z1 = -x * sy_ + z * cy_;
+      const y1 =  y;
+      const y2 = y1 * cp_ - z1 * sp_;
+      const z2 = y1 * sp_ + z1 * cp_;
+      const x2 = x1;
+      const x3 = x2 * cr_ - y2 * sr_;
+      const y3 = x2 * sr_ + y2 * cr_;
+      const z3 = z2;
+      const zw = z3 + CAM;
+      const k = 3 * i;
+      proj[k]     = cxS + x3 * focalX / zw;
+      proj[k + 1] = cyS - y3 * focalY / zw;
+      proj[k + 2] = zw;
+    }
+
+    for (let i = 0; i < E.length; i++) {
+      const ia = E[i][0] * 3, ib = E[i][1] * 3;
+      const ax = proj[ia],     ay = proj[ia + 1], az = proj[ia + 2];
+      const bx = proj[ib],     by = proj[ib + 1], bz = proj[ib + 2];
+      if (az <= 0.6 || bz <= 0.6) continue;
+      drawLine(ax, ay, az, bx, by, bz);
+    }
+
+    const mxRel = mouseX - stageLeft;
+    const myRel = mouseY - stageTop;
+    const HR2 = 40 * 40;
+
+    let out = '';
+    for (let y = 0; y < ROWS; y++) {
+      const cellPy = (y + 0.5) * charH;
+      const dyP = cellPy - myRel;
+      const dy2 = dyP * dyP;
+      const inRowRange = dy2 < HR2;
+      const g = grid[y];
+      let row = '';
+      let acc = false;
+      for (let x = 0; x < COLS; x++) {
+        const ch = g[x];
+        let a = false;
+        if (inRowRange && ch !== ' ') {
+          const dxP = (x + 0.5) * charW - mxRel;
+          if (dxP * dxP + dy2 < HR2) a = true;
+        }
+        if (a !== acc) {
+          row += acc ? '</span>' : '<span class="a">';
+          acc = a;
+        }
+        if (ch === '<')      row += '&lt;';
+        else if (ch === '>') row += '&gt;';
+        else if (ch === '&') row += '&amp;';
+        else                 row += ch;
+      }
+      if (acc) row += '</span>';
+      out += row + '\n';
+    }
+    stage.innerHTML = out;
+  }
+
+  function drawLine(x0, y0, z0, x1, y1, z1) {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const dz = z1 - z0;
+    const adx = Math.abs(dx), ady = Math.abs(dy);
+    const steps = Math.max(1, Math.ceil(Math.max(adx, ady)));
+    const inv = 1 / steps;
+    for (let i = 0; i <= steps; i++) {
+      const t = i * inv;
+      const px = (x0 + dx * t + 0.5) | 0;
+      const py = (y0 + dy * t + 0.5) | 0;
+      if (px < 0 || px >= COLS || py < 0 || py >= ROWS) continue;
+      const pz = z0 + dz * t;
+      if (pz < depthBuf[py][px]) {
+        depthBuf[py][px] = pz;
+        grid[py][px] = charFor(dx, dy, pz);
+      }
+    }
+  }
+
+  const phaseLabels = [
+    { name: "block primitive", val: (s) =>
+        `  ${(s.sx*2).toFixed(2)} × ${(s.sy*2).toFixed(2)} × ${(s.sz*2).toFixed(2)}` },
+    { name: "fillet edges",    val: (s) => `  r = ${s.r.toFixed(2)}` },
+    { name: "stretch axis Y",  val: (s) => `  sy = ${s.sy.toFixed(2)}` },
+    { name: "compress axis Y", val: (s) => `  sy = ${s.sy.toFixed(2)}` },
+    { name: "stretch axis X",  val: (s) => `  sx = ${s.sx.toFixed(2)}` },
+    { name: "twist about Y",   val: (s) => `  ${Math.round(s.tw*180/Math.PI).toString().padStart(2,' ')}°` },
+    { name: "rollback",        val: (s) => `  → base sketch` }
+  ];
+
+  const opNameEl = document.getElementById('opname');
+  const opValEl  = document.getElementById('opval');
+  let shownPhase = -1;
+  let typeTimer = null;
+  let nameBusy = false;
+  let labelActive = true;
+
+  function retypeName(target) {
+    if (typeTimer) { clearTimeout(typeTimer); typeTimer = null; }
+    nameBusy = true;
+    opValEl.textContent = '';
+    let s = opNameEl.textContent;
+    const del = () => {
+      if (!labelActive) { nameBusy = false; return; }
+      if (s.length > 0) {
+        s = s.slice(0, -1);
+        opNameEl.textContent = s;
+        typeTimer = setTimeout(del, 14);
+      } else {
+        add();
+      }
+    };
+    const add = () => {
+      if (!labelActive) { nameBusy = false; return; }
+      if (s.length < target.length) {
+        s = target.slice(0, s.length + 1);
+        opNameEl.textContent = s;
+        typeTimer = setTimeout(add, 22);
+      } else {
+        nameBusy = false;
+      }
+    };
+    del();
+  }
+
+  function updateLabel() {
+    if (!labelActive) return;
+    if (phaseIdx !== shownPhase) {
+      shownPhase = phaseIdx;
+      retypeName(phaseLabels[phaseIdx].name);
+    }
+    if (!nameBusy) {
+      opValEl.textContent = phaseLabels[phaseIdx].val(partState);
+    }
+  }
+
+  function stopStatusLoop() {
+    labelActive = false;
+    if (typeTimer) { clearTimeout(typeTimer); typeTimer = null; }
+  }
+
+  let last = performance.now();
+  function loop(t) {
+    const dt = Math.min(60, t - last);
+    last = t;
+    yaw += (2 * Math.PI) * dt / ROT_PERIOD;
+    if (yaw > 2 * Math.PI) yaw -= 2 * Math.PI;
+    const k = 1 - Math.pow(1 - LERP, dt / 16.667);
+    pitch += (pitchTarget - pitch) * k;
+    roll  += (rollTarget  - roll)  * k;
+    tickState(dt);
+    updateLabel();
+    const geom = buildPart(partState);
+    render(geom);
+    requestAnimationFrame(loop);
+  }
+
+  document.getElementById('request').addEventListener('click', (e) => {
+    e.preventDefault();
+    stopStatusLoop();
+    const status = document.getElementById('status');
+    status.innerHTML =
+      '<span class="prompt">&gt; enter email:&nbsp;</span>' +
+      '<input type="text" id="email" autocomplete="off" spellcheck="false" autocapitalize="off">';
+    const input = document.getElementById('email');
+    setTimeout(() => input.focus(), 0);
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        const email = input.value.trim();
+        console.log('access requested:', email);
+        status.innerHTML =
+          '<span class="prompt">&gt; thanks. we&rsquo;ll be in touch.</span>';
+      }
+    });
+  });
+
+  // Theme toggle (light by default; "dark" remembered explicitly).
+  const themeLink = document.getElementById('theme');
+  function syncThemeLabel() {
+    themeLink.textContent = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
+  }
+  syncThemeLabel();
+  themeLink.addEventListener('click', (ev) => {
+    ev.preventDefault();
+    const isDark = document.documentElement.classList.toggle('dark');
+    syncThemeLabel();
+    try { localStorage.setItem('arche-theme', isDark ? 'dark' : 'light'); } catch (_) {}
+  });
+
+  function init() {
+    let placeholder = '';
+    for (let y = 0; y < ROWS; y++) placeholder += ' '.repeat(COLS) + '\n';
+    stage.textContent = placeholder;
+    measureStage();
+    last = performance.now();
+    requestAnimationFrame(loop);
+  }
+
+  requestAnimationFrame(() => requestAnimationFrame(init));
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => requestAnimationFrame(measureStage));
+  }
+})();
+</script>
+</body>
+</html>
