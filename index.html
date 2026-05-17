@@ -863,13 +863,29 @@ async function initThree() {
   dir.position.set(5, 10, 7);
   scene.add(dir);
 
+  // Chrome material — same cream tone in both themes (matches Smith's
+  // MiniCadPreview.buildChromeMaterial exactly). polygonOffset keeps the
+  // edge LineSegments from z-fighting the surface; without it the lines
+  // disappear into the chrome roughly half the pixels.
   const chrome = new THREE.MeshStandardMaterial({
     color: 0xf2eee8,
     metalness: 0.9,
     roughness: 0.2,
     envMap,
     envMapIntensity: 1.4,
+    polygonOffset: true,
+    polygonOffsetFactor: 2,
+    polygonOffsetUnits: 4,
   });
+
+  // Re-tint the edge lines per theme. The glb ships them as ~15% grey,
+  // which reads fine on the near-black dark theme but turns into a
+  // near-invisible smudge on the warm-white light theme. We grab a
+  // reference to every line material as models load so the toggle can
+  // re-color them in place.
+  const EDGE_COLOR_DARK  = 0x3a3631;
+  const EDGE_COLOR_LIGHT = 0x3a3530;
+  const lineMaterials = new Set();
 
   // ----- Subtle background grid -----
   // Built as an XY-plane lattice and rotated -ELEV about world-X so the
@@ -962,26 +978,38 @@ async function initThree() {
     chrome.envMap = envMap;
     chrome.needsUpdate = true;
     if (old) old.dispose();
+    lineMaterials.forEach((m) => {
+      m.color.set(isDark ? EDGE_COLOR_DARK : EDGE_COLOR_LIGHT);
+    });
     gridMaterial.color.set(isDark ? GRID_COLOR_DARK : GRID_COLOR_LIGHT);
   }
 
   const loader = new GLTFLoader();
   const modelUrls = [
     '/models/f22.glb',
-    '/models/waterbottle.glb',
     '/models/valve.glb',
     '/models/perfume.glb',
-    '/models/bowl.glb',
+    '/models/needle.glb',
+    '/models/gear.glb',
+    '/models/chamber.glb',
   ];
+  // Per-model size tweaks layered on top of the uniform target-dim scale.
+  // Each model is normalised to TARGET_DIM first; the override then nudges
+  // a specific part bigger or smaller relative to the row's baseline.
+  const SCALE_OVERRIDES = {
+    '/models/f22.glb':  1.18,   // jet reads a bit small relative to the others
+    '/models/gear.glb': 0.85,   // gear pair was crowding its slot
+  };
   const unique = await Promise.all(modelUrls.map((u) => loadModel(u, loader)));
 
   // Normalise each model: scale to a target max-dim, recenter at origin.
   const TARGET_DIM = 2.6;
-  const normalised = unique.map((root) => {
+  const normalised = unique.map((root, idx) => {
     const bbox = new THREE.Box3().setFromObject(root);
     const size = bbox.getSize(new THREE.Vector3());
     const maxDim = Math.max(size.x, size.y, size.z) || 1;
-    const scale = TARGET_DIM / maxDim;
+    const override = SCALE_OVERRIDES[modelUrls[idx]] ?? 1;
+    const scale = (TARGET_DIM / maxDim) * override;
     root.scale.setScalar(scale);
     // Recenter so the model spins around its own centroid.
     const center = bbox.getCenter(new THREE.Vector3()).multiplyScalar(scale);
@@ -996,8 +1024,16 @@ async function initThree() {
     root.traverse((c) => {
       c.frustumCulled = false;
       if (c.isMesh) c.material = chrome;
+      else if (c.isLine && c.material) {
+        lineMaterials.add(c.material);
+      }
     });
     return root;
+  });
+  // Apply initial edge color based on current theme.
+  const _initDark = document.documentElement.classList.contains('dark');
+  lineMaterials.forEach((m) => {
+    m.color.set(_initDark ? EDGE_COLOR_DARK : EDGE_COLOR_LIGHT);
   });
 
   // Build the marquee track. Two passes of [bowl, f22, valve] so the
