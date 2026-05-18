@@ -74,6 +74,80 @@ body {
   -webkit-backdrop-filter: blur(14px) saturate(140%);
           backdrop-filter: blur(14px) saturate(140%);
 }
+
+.enter-hint {
+  position: fixed;
+  /* Lifted to overlap the grid's bottom-fade band. The grid plane lands
+     roughly `50vh - 23.4vw` from the viewport bottom (function of the
+     ortho-camera elevation + frame width); +30px parks the hint a touch
+     above that line so it sits inside the fade rather than below it. */
+  bottom: calc(50vh - 23.4vw + 60px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--sans);
+  font-size: 13px;  /* matches the bottom nav */
+  letter-spacing: 0.01em;
+  color: var(--dim);
+  user-select: none;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+/* Animatable angle for the rotating conic border. @property lets the
+   browser interpolate the value frame-by-frame instead of jumping. */
+@property --shimmer-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+.enter-hint kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1.25px solid transparent;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.10em;
+  /* color: pure-black-ish in light, near-white in dark — slightly punchier
+     than var(--fg). Stays legible against the rotating conic border. */
+  color: #0a0908;
+  text-transform: uppercase;
+  /* Burnt-titanium conic gradient on the border only. Padding-box layer
+     fills the inside with page bg so the conic stops are visible just
+     around the perimeter; advancing --shimmer-angle spins them clockwise. */
+  background:
+    linear-gradient(var(--bg), var(--bg)) padding-box,
+    conic-gradient(
+      from var(--shimmer-angle),
+      #3a5cc4   0deg,
+      #6a4ab0  90deg,
+      #c2563a 180deg,
+      #d68a72 270deg,
+      #3a5cc4 360deg
+    ) border-box;
+  animation: enter-kbd-spin 5.2s linear infinite;
+}
+@keyframes enter-kbd-spin {
+  to { --shimmer-angle: 360deg; }
+}
+/* Dark theme: #0a0908 would be invisible — fall back to the regular fg. */
+:root.dark .enter-hint kbd { color: var(--fg); }
+
+/* The "press" and "to enter" labels softly pulse so the row reads as
+   alive without distracting from the spinning SPACE pill. kbd is a
+   sibling of these spans, not a child, so it stays untouched. */
+.enter-hint span {
+  animation: enter-hint-word-pulse 2.4s ease-in-out infinite;
+}
+@keyframes enter-hint-word-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
 .nav {
   position: fixed;
   bottom: 18px;
@@ -221,6 +295,7 @@ body.option2.access-mode .status { display: block; }
 </head>
 <body class="option2">
 <div class="brand">ARCHE INDUSTRIES</div>
+<div class="enter-hint"><span>press</span> <kbd>space</kbd> <span>to enter</span></div>
 <pre id="stage"></pre>
 <div class="status" id="status">
   <span id="cursor">_</span><span id="opname"></span><span id="opval"></span>
@@ -447,7 +522,12 @@ body.option2.access-mode .status { display: block; }
       stageTop  = r.top;
       charW     = r.width / COLS;
       charH     = r.height / ROWS;
-      focalY = (ROWS * 0.66 / 1.45) * CAM * 0.5;
+      // Multiplier 0.53 is the upper end of "fits at every state of the
+      // animation": at peak (sx=1.35, sy=1.45, twist 0.5 rad, max tilt)
+      // the corner farthest from origin reaches roughly y=±1.66 in world
+      // at its closest depth (~CAM - 1.5), which projects to ~21 of the
+      // 22 rows from center — a 1-row margin before clipping.
+      focalY = (ROWS * 0.53 / 1.45) * CAM * 0.5;
       focalX = focalY * (charH / charW);
     }
   }
@@ -677,6 +757,14 @@ body.option2.access-mode .status { display: block; }
       requestAnimationFrame(loop);
       return;
     }
+    // Re-measure every frame the ASCII view is active. measureStage's
+    // formula bails out on a zero-sized rect, and that's exactly the
+    // state #stage is in while option2 is set (display:none). Without
+    // this call the renderer keeps using the fallback focalY = 60 the
+    // first time you toggle into the ASCII view, which is why the cube
+    // was reaching all the way to the grid edges regardless of the
+    // formula constant.
+    measureStage();
     const dt = Math.min(60, t - last);
     last = t;
     yaw += (2 * Math.PI) * dt / ROT_PERIOD;
@@ -713,6 +801,17 @@ body.option2.access-mode .status { display: block; }
           '<span class="prompt">&gt; thanks. we&rsquo;ll be in touch.</span>';
       }
     });
+  });
+
+  // Space-to-enter — TODO: swap the href when the real login URL exists.
+  // Skip the shortcut while the email prompt is focused so a space in
+  // an email doesn't fire navigation.
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'Space' && e.key !== ' ') return;
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    e.preventDefault();
+    window.location.href = '/login';
   });
 
   // Theme toggle — pill button bottom-right, sun/moon icon swaps with state.
@@ -826,7 +925,7 @@ async function initThree() {
   // preview angle (matches MiniCadPreview's elevation; yaw is kept at
   // 0 so the row's world-X motion still maps to a clean horizontal
   // slide on screen).
-  const FRAME_W_BASE = 18; // world units across the frame at desktop
+  const FRAME_W_BASE = 23; // world units across the frame at desktop
   const camera = new THREE.OrthographicCamera(-9, 9, 5, -5, 0.1, 100);
   const CAM_DIST = 22;
   const CAM_ELEV = 0.451;            // sin(~26.8°) — matches Smith preview
@@ -992,6 +1091,7 @@ async function initThree() {
     '/models/needle.glb',
     '/models/gear.glb',
     '/models/chamber.glb',
+    '/models/xwing.glb',
   ];
   // Per-model size tweaks layered on top of the uniform target-dim scale.
   // Each model is normalised to TARGET_DIM first; the override then nudges
