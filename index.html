@@ -1157,6 +1157,62 @@ async function initThree() {
     }
   }
 
+  // Hover + click-to-lock with a generous hit "domain". Instead of
+  // raycasting against the cloned mesh geometry (precise but unforgiving),
+  // each pivot gets a fixed-radius bounding sphere centered on its world
+  // position; ray.intersectSphere() picks the closest one. Sphere radius
+  // is wider than the model silhouette so a cursor near the part still
+  // counts as a hit.
+  //
+  // Click locks the hovered pivot in the expanded state. The lock
+  // releases automatically the moment the pivot's world-X drifts past
+  // the visible frame edge (i.e. it scrolls off the carousel).
+  const hoverRaycaster = new THREE.Raycaster();
+  const hoverNdc = new THREE.Vector2();
+  const _hitSphere = new THREE.Sphere();
+  const _hitPoint = new THREE.Vector3();
+  let hoverPx = -1, hoverPy = -1;
+  let hoveredPivotIndex = -1;
+  let lockedPivotIndex = -1;
+  const HOVER_SCALE = 1.30;
+  const HOVER_LERP  = 0.14;
+  const HIT_RADIUS  = 1.8;                       // a little larger than TARGET_DIM/2
+  const VISIBLE_HALF = FRAME_W_BASE / 2 + 1.5;   // small margin past the frame edge
+
+  function pickPivotAt(clientX, clientY) {
+    hoverNdc.x =  (clientX / window.innerWidth)  * 2 - 1;
+    hoverNdc.y = -(clientY / window.innerHeight) * 2 + 1;
+    hoverRaycaster.setFromCamera(hoverNdc, camera);
+    const ray = hoverRaycaster.ray;
+    let bestIdx = -1;
+    let bestDist = Infinity;
+    for (let i = 0; i < pivots.length; i++) {
+      _hitSphere.center.set(root.position.x + pivots[i].position.x, 0, 0);
+      _hitSphere.radius = HIT_RADIUS;
+      const hit = ray.intersectSphere(_hitSphere, _hitPoint);
+      if (hit) {
+        const d = _hitPoint.distanceTo(ray.origin);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+    }
+    return bestIdx;
+  }
+
+  window.addEventListener('mousemove', (e) => {
+    hoverPx = e.clientX;
+    hoverPy = e.clientY;
+  });
+  window.addEventListener('mouseleave', () => {
+    hoverPx = -1; hoverPy = -1;
+  });
+  // Click locks the hovered pivot. Clicking another pivot switches the
+  // lock; clicking empty space doesn't release (only sliding off does).
+  window.addEventListener('click', (e) => {
+    if (!document.body.classList.contains('option2')) return;
+    const idx = pickPivotAt(e.clientX, e.clientY);
+    if (idx >= 0) lockedPivotIndex = idx;
+  });
+
   // Animation state
   let scrollX = 0;
   const BASE_VELOCITY = -0.012;  // world units / frame
@@ -1228,10 +1284,31 @@ async function initThree() {
     if (scrollX >=  0)          scrollX -= PASS_WIDTH;
     root.position.x = scrollX - PASS_WIDTH * 0.5; // center the visible window
 
+    // Cursor pick — runs after the root.position update so pivot world
+    // X is current. Uses fixed-radius spheres ("hit domains") rather
+    // than mesh-precise raycasting, so the cursor doesn't have to land
+    // on the silhouette.
+    hoveredPivotIndex = (hoverPx >= 0) ? pickPivotAt(hoverPx, hoverPy) : -1;
+
+    // Auto-release the lock when the clicked pivot scrolls past the
+    // visible frame edge. Same world-X formula as pickPivotAt.
+    if (lockedPivotIndex >= 0) {
+      const wx = root.position.x + pivots[lockedPivotIndex].position.x;
+      if (wx < -VISIBLE_HALF || wx > VISIBLE_HALF) {
+        lockedPivotIndex = -1;
+      }
+    }
+
     // Each pivot spins slowly on its own axis. A tiny tilt makes the
-    // chrome catch the env-map highlights as it rotates.
+    // chrome catch the env-map highlights as it rotates. Lerp scale to
+    // HOVER_SCALE if hovered OR locked; everyone else eases back to 1.
     for (let i = 0; i < pivots.length; i++) {
       pivots[i].rotation.y += 0.0045;
+      const expanded = (i === hoveredPivotIndex) || (i === lockedPivotIndex);
+      const target = expanded ? HOVER_SCALE : 1.0;
+      const cur = pivots[i].scale.x;
+      const next = cur + (target - cur) * HOVER_LERP;
+      pivots[i].scale.setScalar(next);
     }
 
     velocity += (BASE_VELOCITY - velocity) * RETURN_RATE;
